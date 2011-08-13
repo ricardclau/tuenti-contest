@@ -1,0 +1,50 @@
+#!/bin/bash
+
+CONTEST_URL="https://contest.tuenti.net/"
+
+if [ $# -lt 2 ]; then
+	(
+		echo "Usage:"
+		echo "   `basename $0` <challenge_token> </path/to/your/program>"
+		echo 
+	) >&2
+	exit 1
+fi
+
+TOKEN=$1
+shift
+PROGRAM=$1
+PROGRAM_PATH=`which "$PROGRAM"`;
+
+if [ ! -x "$PROGRAM" ] && [ -z "$PROGRAM_PATH" ] || [ ! -x "$PROGRAM_PATH" ]; then
+	echo "The specified program '$PROGRAM' does not exist or its not executable"; >&2
+	exit 1
+fi
+
+INPUT=`curl -f -s "$CONTEST_URL?m=Solver&func=getTestInput" -d "token=$TOKEN"`;
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+	echo "We got an error from server. Ensure you are using a valid token." >&2
+	exit $STATUS
+fi
+
+OUTPUT=`echo "$INPUT" | "$@"`
+
+OUTPUT_CHECK=`curl -f -s "$CONTEST_URL?m=Solver&func=assertTestOutput" -d "token=$TOKEN" -d "output=$OUTPUT"`
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+	(
+	echo "ERROR! Houston we have a problem!"
+	echo "--- INPUT ---------------------------------";
+	echo "$INPUT"
+	echo "--- OUTPUT CHECK --------------------------";
+	curl -s "$CONTEST_URL?m=Solver&func=assertTestOutput" -d "token=$TOKEN" -d "output=$OUTPUT"
+	) >&2
+	exit $STATUS
+else
+	echo "OK! Your program gives the right answer!";
+	echo "--- OUTPUT CHECK --------------------------";
+	echo "$OUTPUT_CHECK"
+fi
