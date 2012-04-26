@@ -1,0 +1,69 @@
+#!/bin/bash
+
+CONTEST_URL="https://contest.tuenti.net/"
+
+if [ $# -lt 3 ]; then
+	(
+		echo "Usage:"
+		echo "   `basename $0` <challenge_token> </path/to/source/package> </path/to/your/program>"
+		echo 
+	) >&2
+	exit 65
+fi
+
+TOKEN=$1
+shift
+SOURCE=$1
+shift
+PROGRAM=$1
+PROGRAM_PATH=`which "$PROGRAM"`
+
+
+if [ ! -x "$PROGRAM" ] && [ -z "$PROGRAM_PATH" ] || [ ! -x "$PROGRAM_PATH" ]; then
+	echo "The specified program '$PROGRAM' does not exist or its not executable"; >&2
+	exit 1
+fi
+
+if [ ! -r $SOURCE ]; then
+	echo "The specified source package '$SOURCE' does not exist or its not readable"; >&2
+	exit 1
+fi
+
+BASE64SOURCE=`base64 "$SOURCE"`
+UPLOAD=`curl -f -s "$CONTEST_URL?m=Solver&func=submitCode" -d "token=$TOKEN" -d "name=$SOURCE" -d "source=$BASE64SOURCE"`;
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+	(
+	echo "ERROR: Source upload failed!"
+	echo "Please be sure:"
+	echo "- You are using a valid token."
+	echo "- You already passed the test."
+	echo "- Source is less than 1Mb in size."
+	) >&2
+	exit $STATUS
+else
+	echo "$UPLOAD"
+fi
+
+# At the very moment of executing this, we start measuring time, so don't try hacks here :)
+INPUT=`curl -f -s "$CONTEST_URL?m=Solver&func=getSubmitInput" -d "token=$TOKEN"`;
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+	echo "We got an error from server. Ensure you are using a valid token." >&2
+	exit $STATUS
+fi
+
+OUTPUT=`echo "$INPUT" | "$@"`
+
+curl -f -s "$CONTEST_URL?m=Solver&func=submitOutput" -d "token=$TOKEN" -d "output=$OUTPUT" 
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+	echo "ERROR: Unable to send your program output!";
+	echo "We got an error from server when sending the output. Try to re-submit it asap, time is counting!";
+	exit $STATUS
+else
+	echo "Challenge completed!!!"
+	echo "Go to the contest page and refresh status to continue!";
+fi
