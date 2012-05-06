@@ -1,1 +1,4 @@
+.idea
 *.tgz
+.DS_Store
+atlassian*
